@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Port Warning</string>
+    <string name="send_alert">Send Alert</string>
+    <string name="send">Send</string>
+    <string name="google_maps_key">AIzaSyA9jwhpR-WxtBpZ6PCfGSvCxl9Ud7UXhvA</string>
+
+    <string-array name="intensities">
+        <item>D</item>
+        <item>CS</item>
+        <item>SCS</item>
+    </string-array>
+</resources>
