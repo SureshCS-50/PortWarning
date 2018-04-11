@@ -31,7 +31,7 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 
-import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback, ValueEventListener, ChildEventListener, GoogleMap.InfoWindowAdapter {
@@ -43,6 +43,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     private DatabaseReference mFirebaseDatabase;
     private DBHelper mDBHelper;
+    private Alert mLastestAlert;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,7 +74,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                     .title(port.name));
         }
 
-        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(Port.LAT_CHENNAI, Port.LONG_CHENNAI), 4.5f));
+        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(Port.ZOOM_LAT, Port.ZOOM_LONG), 6f));
         mMap.setInfoWindowAdapter(this);
     }
 
@@ -98,17 +99,18 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @Override
     public void onChildAdded(DataSnapshot dataSnapshot, String s) {
         Log.d("called", "Added");
-        Alert alert = dataSnapshot.getValue(Alert.class);
-        if (alert == null) {
+        mLastestAlert = dataSnapshot.getValue(Alert.class);
+        if (mLastestAlert == null) {
             return;
         }
-        alert.save();
+        mLastestAlert.save();
 
-        LatLng latLng = new LatLng(alert.lat, alert.lon);
+
+        LatLng latLng = new LatLng(mLastestAlert.lat, mLastestAlert.lon);
         mMap.addMarker(new MarkerOptions().position(latLng)
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.cyclone))
-                .title(alert.name));
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 4.5f));
+                .title(mLastestAlert.name));
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 6f));
     }
 
     @Override
@@ -129,16 +131,6 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @Override
     public void onDataChange(DataSnapshot dataSnapshot) {
         Log.d("called", "onDataChange");
-        Alert alert = dataSnapshot.getValue(Alert.class);
-        if (alert == null) {
-            return;
-        }
-        alert.save();
-
-        LatLng latLng = new LatLng(alert.lat, alert.lon);
-        mMap.addMarker(new MarkerOptions().position(latLng)
-                .icon(BitmapDescriptorFactory.fromResource(R.drawable.cyclone))
-                .title(alert.name));
     }
 
     @Override
@@ -165,6 +157,47 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             lat = String.format("%.2f", port.lat);
             lng = String.format("%.2f", port.lon);
             info = new MarkerInfo(port.name, lat, lng, "0", "", "");
+
+            if (mLastestAlert != null) {
+                TextView txtSignal = v.findViewById(R.id.txtSignal);
+                txtSignal.setVisibility(View.VISIBLE);
+
+                switch(port.name.toLowerCase()){
+                    case "chennai":
+                        txtSignal.setText(mLastestAlert.chennai);
+                        break;
+                    case "colachel":
+                        txtSignal.setText(mLastestAlert.colachel);
+                        break;
+                    case "cuddlore":
+                        txtSignal.setText(mLastestAlert.cuddlore);
+                        break;
+                    case "ennore":
+                        txtSignal.setText(mLastestAlert.ennore);
+                        break;
+                    case "karaikal":
+                        txtSignal.setText(mLastestAlert.karaikal);
+                        break;
+                    case "kattupalli":
+                        txtSignal.setText(mLastestAlert.kattupalli);
+                        break;
+                    case "nagapattinam":
+                        txtSignal.setText(mLastestAlert.nagapattinam);
+                        break;
+                    case "pamban":
+                        txtSignal.setText(mLastestAlert.pamban);
+                        break;
+                    case "puducherry":
+                        txtSignal.setText(mLastestAlert.puducherry);
+                        break;
+                    case "rameshwaram":
+                        txtSignal.setText(mLastestAlert.rameshwaram);
+                        break;
+                    case "thoothukodi":
+                        txtSignal.setText(mLastestAlert.thoothukodi);
+                        break;
+                }
+            }
             iconResId = (port.isIntermediatePort) ? R.drawable.anchor_blue : R.drawable.anchor;
         }
 
@@ -173,14 +206,8 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             v = getLayoutInflater().inflate(R.layout.map_info_window_alert, null);
             lat = String.format("%.2f", alert.lat);
             lng = String.format("%.2f", alert.lon);
-            info = new MarkerInfo(alert.name, lat, lng, String.format("%.2f", alert.distance), alert.intensity, alert.signal);
-            TextView tvDistance = (TextView) v.findViewById(R.id.txtDistance);
-            TextView tvIntensity = (TextView) v.findViewById(R.id.txtIntensity);
-            TextView tvSignal = (TextView) v.findViewById(R.id.txtSignal);
 
-            tvDistance.setText(String.valueOf(info.distance));
-            tvIntensity.setText(info.intensity);
-            tvSignal.setText(info.signal);
+            info = new MarkerInfo(alert.name, lat, lng, "0", "", "");
         }
 
         ImageView imgIcon = (ImageView) v.findViewById(R.id.imgIcon);
@@ -189,8 +216,14 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
         imgIcon.setImageResource(iconResId);
         tvTitle.setText(info.title);
-        tvLatLong.setText(info.lat+", "+info.lng);
+        tvLatLong.setText(info.lat + ", " + info.lng);
 
         return v;
+    }
+
+    @Override
+    protected void onDestroy() {
+        Alert.deleteAll(Alert.class);
+        super.onDestroy();
     }
 }

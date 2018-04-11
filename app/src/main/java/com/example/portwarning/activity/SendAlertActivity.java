@@ -5,33 +5,26 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.Spinner;
-import android.widget.Toast;
 
 import com.example.portwarning.Models.Alert;
 import com.example.portwarning.Models.Port;
 import com.example.portwarning.PortWarningApplication;
 import com.example.portwarning.R;
-import com.example.portwarning.PortAdapter;
 import com.google.firebase.database.DatabaseReference;
 
-import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 public class SendAlertActivity extends AppCompatActivity {
 
     private String mLatSC, mLongSC, mLatSFC, mLongSFC;
     private EditText mEtName, mEtLatSC, mEtLongSC, mEtLatSFC, mEtLongSFC;
-    private Spinner mSpinnerIntensity, mSpinnerPort;
-    private PortAdapter mPortAdapter;
-    private Port mSelectedPort;
-
+    private Spinner mSpinnerIntensity, mSpinnerIntensity2;
     private DatabaseReference mFirebaseDatabase;
     private List<Port> mPorts;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,28 +37,12 @@ public class SendAlertActivity extends AppCompatActivity {
         mEtLatSFC = findViewById(R.id.etLatSFC);
         mEtLongSFC = findViewById(R.id.etLongSFC);
         mSpinnerIntensity = findViewById(R.id.spinnerIntensity);
-        mSpinnerPort = findViewById(R.id.spinnerPort);
-
-        mPorts = Port.getAllPorts();
-        mPortAdapter = new PortAdapter(this,
-                android.R.layout.simple_spinner_item,
-                mPorts);
-        mSpinnerPort.setAdapter(mPortAdapter);
+        mSpinnerIntensity2 = findViewById(R.id.spinnerIntensity2);
 
         // get reference to 'alerts' node
         mFirebaseDatabase = PortWarningApplication.getInstance().getFirebaseDatabase();
 
-        mSpinnerPort.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                mSelectedPort = mPortAdapter.getItem(i);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> adapterView) {
-
-            }
-        });
+        mPorts = Port.getAllPorts();
     }
 
     @Override
@@ -86,74 +63,109 @@ public class SendAlertActivity extends AppCompatActivity {
     }
 
     private void sendAlert() {
-        double latSC, longSC, latSFC, longSFC, x, y, d, distance;
-        String intensity = mSpinnerIntensity.getSelectedItem().toString(), signal = "";
+        double cyx, cyy, hx, hy;
+        String intensity = mSpinnerIntensity.getSelectedItem().toString();
+        String intensity1 = mSpinnerIntensity2.getSelectedItem().toString();
+        String[] results = new String[16];
 
         mLatSC = mEtLatSC.getText().toString();
         mLongSC = mEtLongSC.getText().toString();
         mLatSFC = mEtLatSFC.getText().toString();
         mLongSFC = mEtLongSFC.getText().toString();
+        int i = 0;
 
         if (validateFields()) {
-            latSC = Double.valueOf(mLatSC); // cx
-            longSC = Double.valueOf(mLongSC); // cy
-            latSFC = Double.valueOf(mLatSFC); // hx
-            longSFC = Double.valueOf(mLongSFC); // hy
+            cyx = Double.valueOf(mLatSC);
+            cyy = Double.valueOf(mLongSC);
+            hx = Double.valueOf(mLatSFC);
+            hy = Double.valueOf(mLongSFC);
 
-            x = mSelectedPort.lat - latSC;
-            y = mSelectedPort.lon - longSC;
-            d = (x * x) + (y * y);
-            d = Math.sqrt(d);
-            distance = d * 111.0;
-
-            if (distance > 200) {
-                if (intensity.equals("SD")) {
-                    signal = "Signal 1";
-                } else if (intensity.equals("CS") || intensity.equals("SCS")) {
-                    signal = "Signal 2";
-                } else {
-                    signal = "ERROR";
-                }
-            } else if (distance < 200) {
-                if (intensity.equals("SD")) {
-                    signal = "Signal 3";
-                } else if (intensity.equals("CS")) {
-                    if ((mSelectedPort.lat + 0.18) <= latSFC) {
-                        signal = "Signal 6";
-                    } else if ((mSelectedPort.lat - 0.18) >= latSFC) {
-                        signal = "Signal 5";
-                    } else {
-                        signal = "Signal 7";
-                    }
-                } else if (intensity.equals("SCS")) {
-                    if ((mSelectedPort.lat + 0.18) <= latSFC) {
-                        signal = "Signal 9";
-                    } else if ((mSelectedPort.lat - 0.18) >= latSFC) {
-                        signal = "Signal 8";
-                    } else {
-                        signal = "Signal 10";
-                    }
-                } else {
-                    signal = "ERROR";
-                }
-            } else {
-                signal = "Signal 11";
+            for (Port port : mPorts) {
+                results[i] = calcSignal(cyx, cyy, hx, hy, intensity, intensity1, port);
+                i++;
             }
 
-            if (!signal.equals("ERROR")) {
-                sendToFirebaseDb(mEtName.getText().toString().trim(), latSC, longSC, latSFC, longSFC, distance, intensity, signal);
-            } else {
-                Toast.makeText(this, signal, Toast.LENGTH_SHORT).show();
-            }
+            sendToFirebaseDb(mEtName.getText().toString().trim(), cyx, cyy, hx, hy, results);
         }
     }
 
-    private void sendToFirebaseDb(String name, double latSC, double longSC, double latSFC, double longSFC, double distance, String intensity, String signal) {
+    private void sendToFirebaseDb(String name, double cyx, double cyy, double hx, double hy, String... results) {
         // create alert id
         String alertId = mFirebaseDatabase.push().getKey();
-        Alert alert = new Alert(name, latSC, longSC, latSFC, longSFC, distance, intensity, signal);
+        String date = getSystemCurrentTime("yyyy:MM:dd");
+        String time = getSystemCurrentTime("HH:mm:ss");
+        Alert alert = new Alert(name, cyx, cyy, hx, hy, date, time, results[0], results[1], results[2], results[3], results[4], results[5], results[6], results[7], results[8], results[9], results[10]);
         mFirebaseDatabase.child(alertId).setValue(alert);
         finish();
+    }
+
+    private String calcSignal(double cyx, double cyy, double hx, double hy, String inte, String inte1, Port port) {
+        double x, y, x1, y1;
+        double px = port.lat, py = port.lon;
+
+        x1 = cyx - px;
+        y1 = cyy - py;
+        x = hx - px;
+        y = hy - py;
+        double d, d1;
+        d1 = (x1 * x1) + (y1 * y1);
+        d1 = Math.sqrt(d1);
+        d = (x * x) + (y * y);
+        d = Math.sqrt(d);
+        double distance, distance1;
+        distance = d * 111.0;
+        distance1 = d1 * 111.0;
+
+        String sd, cs, scs;
+        String sig = "";
+        sd = "D";
+        cs = "CS";
+        scs = "SCS";
+
+        if (distance1 > 500.0) {
+            if (inte1.equals(sd)) {
+                sig = "Signal 1 - DC1 (Distant Cautionary 1)";
+            } else if (inte1.equals(cs) || inte1.equals(scs)) {
+                sig = "Signal 2 - DW2 (Distant Warning 2)";
+            } else {
+                sig = "ERROR";
+            }
+        } else {
+            if (distance > 250.0) {
+                if (inte.equals(sd)) {
+                    sig = "Signal 1 - DC1 (Distant Cautionary 1)";
+                } else if (inte.equals(cs) || inte.equals(scs)) {
+                    sig = "Signal 2 - DW2 (Distant Warning 2)";
+                } else {
+                    sig = "ERROR";
+                }
+            } else if (distance < 250.0) {
+                if (inte.equals(sd)) {
+                    sig = "Signal 3 - LC3 (Local Cautionary 3)";
+                } else if (inte.equals(cs)) {
+                    if ((hx + 0.20) >= px && (hx - 0.20) <= px) {
+                        sig = "Signal 7 - D7 (Danger 7) ";
+                    } else if (hx <= px) {
+                        sig = "Signal 6 - D6 (Danger 6)";
+                    } else if (hx >= px) {
+                        sig = "Signal 5 - D5 (Danger 5)";
+                    }
+                } else if (inte.equals(scs)) {
+                    if ((hx + 0.20) >= px && (hx - 0.20) <= px) {
+                        sig = "Signal 10 - GD10 (Great Danger 10)";
+                    } else if (hx <= px) {
+                        sig = "Signal 9 - GD9 (Great Danger 9)";
+                    } else if (hx >= px) {
+                        sig = "Signal 8 - GD8 (Great Danger 8)";
+                    }
+                } else {
+                    sig = "ERROR";
+                }
+            } else {
+                sig = "Signal 11";
+            }
+        }
+        return sig;
     }
 
     private boolean validateFields() {
@@ -182,6 +194,11 @@ public class SendAlertActivity extends AppCompatActivity {
         }
 
         return true;
+    }
+
+    public static String getSystemCurrentTime(String format) {
+        SimpleDateFormat sdf = new SimpleDateFormat(format);
+        return sdf.format(new Date());
     }
 
 }
